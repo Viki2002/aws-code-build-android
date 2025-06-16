@@ -2,21 +2,13 @@ version: 0.2
 
 phases:
   install:
-    runtime-versions:
-      java: corretto17
     commands:
-      - echo "Install started on `date`"
+      - echo "Install started"
       - chmod +x ./gradlew
-  pre_build:
-    commands:
-      - echo "Pre Build started on `date`"
   build:
     commands:
-      - echo "Build started on `date`"
+      - echo "Build started"
       - ./gradlew clean assembleDebug
-  post_build:
-    commands:
-      - echo "Build completed on `date`"
 artifacts:
   files:
     - app/build/outputs/apk/debug/app-debug.apk
