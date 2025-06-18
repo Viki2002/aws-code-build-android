@@ -4,8 +4,8 @@ phases:
   install:
     commands:
       - echo "Installing dependencies..."
-      - echo "sdk.dir=$ANDROID_HOME" > local.properties
       - chmod +x ./gradlew
+      - echo "sdk.dir=$ANDROID_HOME" > local.properties
 
   pre_build:
     commands:
@@ -21,6 +21,7 @@ phases:
     commands:
       - echo "Preparing Device Farm test run..."
 
+      # Set environment variables
       - export PROJECT_ARN="arn:aws:devicefarm:us-west-2:812836555473:project:d4f727f9-5f41-4953-b748-449cab6405cf"
       - export DEVICE_POOL_ARN="arn:aws:devicefarm:us-west-2:812836555473:devicepool:d4f727f9-5f41-4953-b748-449cab6405cf/109b5efd-6f9d-479a-8c4d-d19730174c76"
       - export APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
