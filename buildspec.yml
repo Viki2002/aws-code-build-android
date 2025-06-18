@@ -9,6 +9,13 @@ phases:
       - echo "Installing dependencies..."
       - pip install --upgrade pip
       - pip install awscli
+
+      # Install Android SDK and accept licenses
+      - echo "Installing Android SDK components..."
+      - yes | sdkmanager "platform-tools" "platforms;android-33" "build-tools;30.0.3"
+      - yes | sdkmanager --licenses
+
+      # Create local.properties with SDK path
       - echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
       - chmod +x ./gradlew
 
@@ -25,20 +32,16 @@ phases:
   post_build:
     commands:
       - echo "Preparing Device Farm test run..."
-
-      # Set environment variables
       - export PROJECT_ARN="arn:aws:devicefarm:us-west-2:812836555473:project:d4f727f9-5f41-4953-b748-449cab6405cf"
       - export DEVICE_POOL_ARN="arn:aws:devicefarm:us-west-2:812836555473:devicepool:d4f727f9-5f41-4953-b748-449cab6405cf/109b5efd-6f9d-479a-8c4d-d19730174c76"
       - export APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
 
-      # ✅ Check if APK exists
       - |
         if [ ! -f "$APK_PATH" ]; then
           echo "APK not found at $APK_PATH. Build likely failed. Exiting."
           exit 1
         fi
 
-      # Create Device Farm upload
       - echo "Creating upload in Device Farm..."
       - export UPLOAD_ARN=$(aws devicefarm create-upload \
           --project-arn "$PROJECT_ARN" \
@@ -53,7 +56,6 @@ phases:
       - echo "Uploading APK to Device Farm..."
       - curl -T "$APK_PATH" "$UPLOAD_URL"
 
-      # Wait for upload to process
       - |
         echo "Waiting for APK upload to process..."
         while true; do
@@ -68,7 +70,6 @@ phases:
           sleep 10
         done
 
-      # Schedule test run
       - echo "Scheduling Device Farm test run..."
       - export RUN_ARN=$(aws devicefarm schedule-run \
           --project-arn "$PROJECT_ARN" \
@@ -78,7 +79,6 @@ phases:
           --test type=BUILTIN_FUZZ \
           --query 'run.arn' --output text)
 
-      # Wait for test to complete
       - |
         echo "Waiting for test to complete..."
         while true; do
