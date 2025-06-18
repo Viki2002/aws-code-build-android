@@ -6,75 +6,78 @@ phases:
       java: corretto17
       python: 3.11
     commands:
-      - echo "Installing dependencies"
+      - echo "Installing dependencies..."
       - pip install --upgrade pip
       - pip install awscli
       - chmod +x ./gradlew
 
   build:
     commands:
-      - echo "Starting build"
+      - echo "Building APK..."
       - ./gradlew clean assembleDebug
 
   post_build:
     commands:
       - echo "Preparing Device Farm test run..."
 
-      # Set your ARNs
+      # Set environment variables
       - export PROJECT_ARN="arn:aws:devicefarm:us-west-2:812836555473:project:d4f727f9-5f41-4953-b748-449cab6405cf"
       - export DEVICE_POOL_ARN="arn:aws:devicefarm:us-west-2:812836555473:devicepool:d4f727f9-5f41-4953-b748-449cab6405cf/109b5efd-6f9d-479a-8c4d-d19730174c76"
       - export APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
 
-      # Create upload
-      - echo "Creating upload..."
+      # Create Device Farm upload
+      - echo "Creating upload in Device Farm..."
       - export UPLOAD_ARN=$(aws devicefarm create-upload \
-          --project-arn $PROJECT_ARN \
-          --name app-debug.apk \
+          --project-arn "$PROJECT_ARN" \
+          --name "app-debug.apk" \
           --type ANDROID_APP \
           --query 'upload.arn' --output text)
+
       - export UPLOAD_URL=$(aws devicefarm get-upload \
-          --arn $UPLOAD_ARN \
+          --arn "$UPLOAD_ARN" \
           --query 'upload.url' --output text)
-      - curl -T $APK_PATH $UPLOAD_URL
+
+      - echo "Uploading APK to Device Farm..."
+      - curl -T "$APK_PATH" "$UPLOAD_URL"
 
       # Wait for upload to process
       - |
         echo "Waiting for APK upload to process..."
         while true; do
-          STATUS=$(aws devicefarm get-upload --arn $UPLOAD_ARN --query 'upload.status' --output text)
+          STATUS=$(aws devicefarm get-upload --arn "$UPLOAD_ARN" --query 'upload.status' --output text)
           echo "Status: $STATUS"
           if [ "$STATUS" == "SUCCEEDED" ]; then
             break
           elif [ "$STATUS" == "FAILED" ]; then
-            echo "Upload failed"
+            echo "Upload failed!"
             exit 1
           fi
           sleep 10
         done
 
       # Schedule test run
-      - echo "Scheduling test run..."
+      - echo "Scheduling Device Farm test run..."
       - export RUN_ARN=$(aws devicefarm schedule-run \
-          --project-arn $PROJECT_ARN \
-          --app-arn $UPLOAD_ARN \
-          --device-pool-arn $DEVICE_POOL_ARN \
-          --name "CI Test Run" \
+          --project-arn "$PROJECT_ARN" \
+          --app-arn "$UPLOAD_ARN" \
+          --device-pool-arn "$DEVICE_POOL_ARN" \
+          --name "CI Test Run - $CODEBUILD_BUILD_ID" \
           --test type=BUILTIN_FUZZ \
           --query 'run.arn' --output text)
 
-      # Wait for test result
+      # Wait for test to complete
       - |
-        echo "Waiting for test result..."
+        echo "Waiting for test to complete..."
         while true; do
-          RUN_STATUS=$(aws devicefarm get-run --arn $RUN_ARN --query 'run.status' --output text)
-          RESULT=$(aws devicefarm get-run --arn $RUN_ARN --query 'run.result' --output text)
+          RUN_STATUS=$(aws devicefarm get-run --arn "$RUN_ARN" --query 'run.status' --output text)
+          RESULT=$(aws devicefarm get-run --arn "$RUN_ARN" --query 'run.result' --output text)
           echo "Status: $RUN_STATUS, Result: $RESULT"
           if [ "$RUN_STATUS" == "COMPLETED" ]; then
             if [ "$RESULT" == "PASSED" ]; then
-              echo "Tests passed!"
+              echo "All tests passed!"
               break
             else
-              echo "Tests failed or had issues: $RESULT"
+              echo "Test result: $RESULT"
               exit 1
             fi
           fi
